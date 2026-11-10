@@ -18,3 +18,4 @@ export const notificationIdParamsSchema = z.object({
 });
 
 export type ListNotificationsQuerySchema = z.infer<typeof listNotificationsQuerySchema>;
+export type NotificationIdParamsSchema = z.infer<typeof notificationIdParamsSchema>;

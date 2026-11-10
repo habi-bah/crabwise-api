@@ -7,7 +7,7 @@
  * fan-out (queued, never in-request) when SMTP is configured.
  */
 
-import type { Notification } from '@prisma/client';
+import type { Notification, Prisma } from '@prisma/client';
 
 import { env } from '@/config';
 import { AppError } from '@/middlewares';
@@ -87,7 +87,7 @@ export async function createNotification(input: CreateNotificationInput): Promis
     data: {
       userId: input.userId,
       type: input.type,
-      data: input.data ?? undefined,
+      data: (input.data ?? undefined) as Prisma.InputJsonValue | undefined,
     },
   });
   await invalidateUnreadCount(input.userId);
@@ -112,7 +112,7 @@ export async function createNotifications(
     data: userIds.map((userId) => ({
       userId,
       type,
-      data: data ?? undefined,
+      data: (data ?? undefined) as Prisma.InputJsonValue | undefined,
     })),
   });
   await Promise.all(userIds.map((userId) => invalidateUnreadCount(userId)));
