@@ -9,7 +9,7 @@
 
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { z } from 'zod';
-import type { ApiResponse } from '@/types';
+import type { ApiErrorField, ApiResponse } from '@/types';
 import { formatZodIssues } from './error-handler.middleware';
 import { AppError } from './app-error.middleware';
 
@@ -43,7 +43,7 @@ export function validate<
   QuerySchema extends z.ZodType | undefined = undefined,
 >(options: ValidateOptions<BodySchema, ParamsSchema, QuerySchema>): RequestHandler {
   return (req: Request, res: Response<ApiResponse>, next: NextFunction) => {
-    const failures: Array<{ source: string; error: z.ZodError }> = [];
+    const failures: Array<{ source: 'body' | 'params' | 'query'; error: z.ZodError }> = [];
     const parsed: Record<string, unknown> = {};
 
     for (const source of ['body', 'params', 'query'] as const) {
