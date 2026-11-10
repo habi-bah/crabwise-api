@@ -25,7 +25,8 @@ const { prismaMock, redisMock, tryGetRedisClientMock } = vi.hoisted(() => {
     zrevrange: vi.fn(),
     zincrby: vi.fn(),
     zcard: vi.fn(),
-    keys: vi.fn().mockResolvedValue([]),
+    // `invalidateNamespace` iterates with SCAN (#866), not KEYS.
+    scan: vi.fn(),
     del: vi.fn(),
   };
   return { prismaMock: prisma, redisMock: redis, tryGetRedisClientMock: vi.fn() };
@@ -41,9 +42,13 @@ import { recordArtworkView, listRecentlyViewed } from './recently-viewed.service
 import { toggleArtworkSave } from './saves.service';
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  // `resetAllMocks`, not `clearAllMocks`: a test that aborts early leaves
+  // `mockResolvedValueOnce` values queued, which would otherwise be picked up
+  // by whichever test runs next.
+  vi.resetAllMocks();
   tryGetRedisClientMock.mockReturnValue(redisMock);
-  redisMock.keys.mockResolvedValue([]);
+  redisMock.scan.mockResolvedValue(['0', []]);
+  redisMock.set.mockResolvedValue('OK');
 });
 
 describe('browse -> search -> filter -> artwork detail', () => {
@@ -59,7 +64,8 @@ describe('browse -> search -> filter -> artwork detail', () => {
     expect(browsePage.items).toEqual([artwork]);
 
     redisMock.get.mockResolvedValue(null);
-    prismaMock.$queryRaw.mockResolvedValueOnce([artwork]);
+    // Full-text count, then the full-text rows.
+    prismaMock.$queryRaw.mockResolvedValueOnce([{ count: 1 }]).mockResolvedValueOnce([artwork]);
 
     const searchPage = await searchArtworks('sunset', { category: 'PHOTOGRAPHY' }, 1, 20);
     expect(searchPage.items).toEqual([artwork]);
@@ -72,14 +78,16 @@ describe('browse -> search -> filter -> artwork detail', () => {
   });
 
   it('search results are consistent across repeated requests (served from cache)', async () => {
-    redisMock.get.mockResolvedValueOnce(null).mockResolvedValueOnce(JSON.stringify([artwork]));
-    prismaMock.$queryRaw.mockResolvedValueOnce([artwork]);
+    const cachedPage = JSON.stringify({ items: [artwork], total: 1 });
+    redisMock.get.mockResolvedValueOnce(null).mockResolvedValueOnce(cachedPage);
+    prismaMock.$queryRaw.mockResolvedValueOnce([{ count: 1 }]).mockResolvedValueOnce([artwork]);
 
     const first = await searchArtworks('sunset', {}, 1, 20);
     const second = await searchArtworks('sunset', {}, 1, 20);
 
     expect(second.items).toEqual(first.items);
-    expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1);
+    // One count query and one row query, both only on the cache miss.
+    expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(2);
   });
 });
 
