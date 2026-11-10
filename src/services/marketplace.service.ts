@@ -158,7 +158,6 @@ function browseCacheKey(
   cursor: string | undefined,
   limit: number,
 ): string {
-  return `marketplace:browse:${stableStringify({ filters, sort, cursor, limit })}`;
   // `verifiedOnly` is always materialised (true/false, never undefined) so
   // "filter off" and "filter absent" share one cache slot instead of
   // producing two keys for the same result set (#865).
@@ -166,7 +165,7 @@ function browseCacheKey(
     ...filters,
     verifiedOnly: filters.verifiedOnly === true,
   };
-  return `marketplace:browse:${JSON.stringify({ filters: normalized, sort, cursor, limit })}`;
+  return `marketplace:browse:${stableStringify({ filters: normalized, sort, cursor, limit })}`;
 }
 
 export async function browseArtworks(
