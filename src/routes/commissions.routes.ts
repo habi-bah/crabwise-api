@@ -694,6 +694,8 @@ commissionsRouter.post(
   authenticate,
   validate({ params: commissionStatusParamsSchema, body: commissionCancelBodySchema }),
   postCommissionCancellation,
+);
+
 // Deliverables (#784): the artist submits a WIP draft or the final artefact.
 commissionsRouter.post(
   '/:id/deliverables',
