@@ -85,7 +85,8 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "validate:migrations": "tsx scripts/validate-migrations.ts"
   },
   "type": "commonjs",
   "version": "0.1.0"
