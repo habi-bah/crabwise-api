@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push supersedes the run in progress for the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Typecheck, lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # HUSKY=0 skips installing the git hooks in CI.
+      - name: Install dependencies
+        run: npm ci
+        env:
+          HUSKY: 0
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      # Guards the ordering assumptions `prisma migrate deploy` relies on.
+      - name: Validate migrations
+        run: npm run validate:migrations
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # The unit tests bring their own env defaults (src/test/setup-env.ts),
+      # so no database or Redis service is required.
+      - name: Test
+        run: npm test
