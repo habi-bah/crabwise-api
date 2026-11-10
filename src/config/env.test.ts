@@ -9,7 +9,7 @@ async function loadEnv(overrides: Record<string, string | undefined> = {}) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
   }
-  return (await import('./env')).env;
+  return (await import('./env.js')).env;
 }
 
 describe('LOG_STACK_TRACES_IN_PRODUCTION', () => {
@@ -23,8 +23,12 @@ describe('LOG_STACK_TRACES_IN_PRODUCTION', () => {
   });
 
   it('parses "true" and "false" explicitly', async () => {
-    expect((await loadEnv({ LOG_STACK_TRACES_IN_PRODUCTION: 'true' })).logStackTracesInProduction).toBe(true);
-    expect((await loadEnv({ LOG_STACK_TRACES_IN_PRODUCTION: 'false' })).logStackTracesInProduction).toBe(false);
+    expect(
+      (await loadEnv({ LOG_STACK_TRACES_IN_PRODUCTION: 'true' })).logStackTracesInProduction,
+    ).toBe(true);
+    expect(
+      (await loadEnv({ LOG_STACK_TRACES_IN_PRODUCTION: 'false' })).logStackTracesInProduction,
+    ).toBe(false);
   });
 
   it('rejects other values', async () => {
@@ -89,7 +93,11 @@ describe('env', () => {
 
     it('requires EURC and NGNT issuers in production', async () => {
       await expect(
-        loadEnv({ NODE_ENV: 'production', EURC_ASSET_ISSUER: undefined, NGNT_ASSET_ISSUER: undefined }),
+        loadEnv({
+          NODE_ENV: 'production',
+          EURC_ASSET_ISSUER: undefined,
+          NGNT_ASSET_ISSUER: undefined,
+        }),
       ).rejects.toThrow(/EURC_ASSET_ISSUER[\s\S]*NGNT_ASSET_ISSUER/);
     });
 
