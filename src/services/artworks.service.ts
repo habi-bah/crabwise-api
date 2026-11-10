@@ -14,10 +14,8 @@ import type { Asset, Artwork, ArtworkCategory } from '@prisma/client';
 import { AppError } from '@/middlewares';
 import { prisma } from '@/services';
 
-import { cached } from './cache.service';
-import { recordArtworkViewSafely } from './recently-viewed.service';
 import { cached, invalidateNamespace } from './cache.service';
-import { recordArtworkView } from './recently-viewed.service';
+import { recordArtworkViewSafely } from './recently-viewed.service';
 
 export interface ListArtworksFilters {
   readonly category?: ArtworkCategory;

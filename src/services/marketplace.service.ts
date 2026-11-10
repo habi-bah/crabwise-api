@@ -69,17 +69,13 @@ const VERIFIED_ARTISTS_CACHE_TTL_SECONDS = 15 * 60;
  * the correct behaviour when no artist is verified yet.
  */
 async function verifiedArtistUserIds(): Promise<string[]> {
-  return cached(
-    'marketplace:verified-artist-ids',
-    VERIFIED_ARTISTS_CACHE_TTL_SECONDS,
-    async () => {
-      const profiles = await prisma.artistProfile.findMany({
-        where: { verified: true },
-        select: { userId: true },
-      });
-      return profiles.map((p) => p.userId);
-    },
-  );
+  return cached('marketplace:verified-artist-ids', VERIFIED_ARTISTS_CACHE_TTL_SECONDS, async () => {
+    const profiles = await prisma.artistProfile.findMany({
+      where: { verified: true },
+      select: { userId: true },
+    });
+    return profiles.map((p) => p.userId);
+  });
 }
 
 /**
@@ -189,7 +185,6 @@ export async function browseArtworks(
     }
   }
 
-  const where = await buildWhere(filters);
   const offsetMode = usesOffsetCursor(sort);
   if (!offsetMode && cursor?.startsWith(OFFSET_CURSOR_PREFIX)) {
     throw invalidCursor();

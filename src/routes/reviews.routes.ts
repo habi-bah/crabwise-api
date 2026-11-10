@@ -4,7 +4,6 @@
 
 import { createFeatureRouter } from './router-factory';
 import {
-  getUserReviews,
   patchReview,
   postReview,
   postReviewReport,
@@ -42,4 +41,3 @@ reviewsRouter.post(
   validate({ params: reviewIdParamsSchema, body: reportReviewBodySchema }),
   postReviewReport,
 );
-

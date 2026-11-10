@@ -21,14 +21,13 @@ import {
 import { connectDatabase, disconnectDatabase } from '@/services';
 import { logger } from '@/utils';
 import {
+  startCommissionRefundWorker,
+  startEmailWorker,
   startMediaCleanupWorker,
+  startMediaWorker,
   startRefreshTokenCleanupWorker,
   startStellarNonceCleanupWorker,
 } from '@/workers';
-import { startCommissionRefundWorker } from '@/workers';
-import { startEmailWorker } from '@/workers';
-import { startMediaCleanupWorker } from '@/workers';
-import { startMediaWorker } from '@/workers';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -70,11 +69,11 @@ async function bootstrap(): Promise<void> {
     shuttingDown = true;
     logger.info('Shutdown requested', { signal });
     server.close(() => {
-      void (mediaCleanupWorker?.close() ?? Promise.resolve())
-      void (refreshTokenCleanupWorker?.close() ?? Promise.resolve())
-      void (stellarNonceCleanupWorker?.close() ?? Promise.resolve())
-      void Promise.resolve(mediaWorker?.close())
-      void Promise.resolve(commissionRefundWorker?.close())
+      void (mediaCleanupWorker?.close() ?? Promise.resolve());
+      void (refreshTokenCleanupWorker?.close() ?? Promise.resolve());
+      void (stellarNonceCleanupWorker?.close() ?? Promise.resolve());
+      void Promise.resolve(mediaWorker?.close());
+      void Promise.resolve(commissionRefundWorker?.close());
       void Promise.resolve(emailWorker?.close())
         .catch(() => undefined)
         .then(() => Promise.resolve(mediaWorker?.close()))
