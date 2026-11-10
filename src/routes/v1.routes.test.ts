@@ -5,18 +5,10 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { v1Router } from './v1.routes';
+import { featureMounts } from './v1.routes';
 
-interface RouterLayer {
-  readonly name?: string;
-  readonly path?: string;
-}
-
-function mountedPaths(): string[] {
-  const stack = (v1Router as unknown as { stack?: RouterLayer[] }).stack ?? [];
-  return stack
-    .filter((layer) => typeof layer.path === 'string' && layer.path.length > 0)
-    .map((layer) => layer.path as string);
+function mountedPaths(): readonly string[] {
+  return featureMounts;
 }
 
 describe('v1Router mounts (#867)', () => {

@@ -29,26 +29,39 @@ import { searchRouter } from './search.routes';
 import { tagsRouter } from './tags.routes';
 import { usersRouter } from './users.routes';
 
+/**
+ * The single source of truth for the v1 mount points. Express 5 does not
+ * expose a `path` on `use()` layers, so the table is exported for the mount
+ * regression test (#867) instead of being re-derived from the stack.
+ */
+const FEATURE_MOUNTS = [
+  ['/health', v1HealthRouter],
+  ['/auth', authRouter],
+  ['/users', usersRouter],
+  ['/profiles', profilesRouter],
+  ['/portfolios', portfoliosRouter],
+  ['/artworks', artworksRouter],
+  ['/marketplace', marketplaceRouter],
+  ['/search', searchRouter],
+  ['/categories', categoriesRouter],
+  ['/media', mediaRouter],
+  ['/tags', tagsRouter],
+  ['/orders', ordersRouter],
+  ['/payments', paymentsRouter],
+  ['/commissions', commissionsRouter],
+  ['/reviews', reviewsRouter],
+  ['/threads', threadsRouter],
+  ['/messages', messagesRouter],
+  ['/notifications', notificationsRouter],
+  ['/admin', adminRouter],
+  ['/stats', statsRouter],
+  ['/analytics', analyticsRouter],
+] as const;
+
+export const featureMounts: readonly string[] = FEATURE_MOUNTS.map(([path]) => path);
+
 export const v1Router: Router = Router();
 
-v1Router.use('/health', v1HealthRouter);
-v1Router.use('/auth', authRouter);
-v1Router.use('/users', usersRouter);
-v1Router.use('/profiles', profilesRouter);
-v1Router.use('/portfolios', portfoliosRouter);
-v1Router.use('/artworks', artworksRouter);
-v1Router.use('/marketplace', marketplaceRouter);
-v1Router.use('/search', searchRouter);
-v1Router.use('/categories', categoriesRouter);
-v1Router.use('/media', mediaRouter);
-v1Router.use('/tags', tagsRouter);
-v1Router.use('/orders', ordersRouter);
-v1Router.use('/payments', paymentsRouter);
-v1Router.use('/commissions', commissionsRouter);
-v1Router.use('/reviews', reviewsRouter);
-v1Router.use('/threads', threadsRouter);
-v1Router.use('/messages', messagesRouter);
-v1Router.use('/notifications', notificationsRouter);
-v1Router.use('/admin', adminRouter);
-v1Router.use('/stats', statsRouter);
-v1Router.use('/analytics', analyticsRouter);
+for (const [path, router] of FEATURE_MOUNTS) {
+  v1Router.use(path, router);
+}
