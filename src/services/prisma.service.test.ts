@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@prisma/client', () => ({ PrismaClient: vi.fn(() => ({})) }));
+vi.mock('@prisma/client', () => ({
+  PrismaClient: class {
+    $connect = vi.fn();
+    $disconnect = vi.fn();
+  },
+}));
 vi.mock('@/config', () => ({
   env: { databaseUrl: 'postgresql://u:p@localhost:5432/db', databasePoolSize: 20 },
 }));
@@ -21,7 +26,9 @@ describe('buildDatabaseUrl', () => {
 
   it('keeps a connection_limit already present in the URL', () => {
     expect(
-      new URL(buildDatabaseUrl(`${BASE}?connection_limit=3`, 5)).searchParams.get('connection_limit'),
+      new URL(buildDatabaseUrl(`${BASE}?connection_limit=3`, 5)).searchParams.get(
+        'connection_limit',
+      ),
     ).toBe('3');
   });
 });
