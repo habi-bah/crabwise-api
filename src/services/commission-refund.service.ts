@@ -24,9 +24,7 @@ import { logger } from '@/utils';
 
 /** How the worker moved the refund forward; surfaced for tests and logs. */
 export type CommissionRefundOutcome =
-  | 'COMPLETED'
-  | 'SKIPPED_ALREADY_PROCESSED'
-  | 'SKIPPED_NOT_REQUIRED';
+  'COMPLETED' | 'SKIPPED_ALREADY_PROCESSED' | 'SKIPPED_NOT_REQUIRED';
 
 /**
  * Records the intent to refund inside `cancelCommission`'s transaction: one
@@ -153,9 +151,7 @@ async function notifyParties(
     data: [commission.clientId, commission.artistId].map((userId) => ({
       userId,
       type: notification.type,
-      data: notification.data,
+      data: notification.data as Prisma.InputJsonValue,
     })),
   });
 }
-
-export type { CommissionRefund };
