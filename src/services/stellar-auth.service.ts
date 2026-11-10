@@ -86,15 +86,18 @@ export async function verifySignature(
 export async function findOrCreateUserByWalletPublicKey(
   publicKey: string,
 ): Promise<{ user: PublicUser; tokens: TokenPair }> {
-  const existingWallet = await prisma.wallet.findUnique({
-    where: { publicKey },
-    include: { user: true },
-  });
+  // `Wallet` has no Prisma relation to `User` (only the `userId` column), so
+  // the owner is loaded with a second query rather than an `include`.
+  const existingWallet = await prisma.wallet.findUnique({ where: { publicKey } });
 
   let userRecord: User;
 
   if (existingWallet !== null) {
-    userRecord = existingWallet.user;
+    const walletUser = await prisma.user.findUnique({ where: { id: existingWallet.userId } });
+    if (walletUser === null) {
+      throw new AppError('NOT_FOUND', 'Wallet is not linked to a user');
+    }
+    userRecord = walletUser;
   } else {
     const email = `wallet_${publicKey.toLowerCase()}@stellar.local`;
     const baseName = `wallet_${publicKey.slice(1, 9).toLowerCase()}`;
