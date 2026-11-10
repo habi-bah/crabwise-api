@@ -90,7 +90,7 @@ describe('registerUser', () => {
   it('rejects a duplicate email with CONFLICT', async () => {
     prismaMock.user.findUnique.mockResolvedValue(storedUser);
     await expect(
-      registerUser({ name: 'Ada', email: 'ada@example.com', password: 'x', role: 'USER' }),
+      registerUser({ name: 'Ada', email: 'ada@example.com', password: 'Secret123', role: 'USER' }),
     ).rejects.toMatchObject({ code: 'CONFLICT' });
     expect(prismaMock.user.create).not.toHaveBeenCalled();
   });
@@ -117,7 +117,10 @@ describe('registerUser', () => {
 
     // Registration succeeded despite 5 username collisions.
     expect(result.user.email).toBe('ada@example.com');
-    expect(result.user.username).toMatch(/^ada_[0-9a-f]{8}$/);
+    // The generated name is what gets persisted; `result.user` echoes the mocked row.
+    expect(prismaMock.user.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ username: expect.stringMatching(/^ada_[0-9a-f]{8}$/) }),
+    });
     // email check + 6 username candidates
     expect(prismaMock.user.findUnique).toHaveBeenCalledTimes(7);
   });
