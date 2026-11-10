@@ -831,19 +831,6 @@ export const openApiSpec = swaggerJsdoc({
           },
         },
         PaymentIntentResponse: {
-        CancelCommissionRequest: {
-          type: 'object',
-          required: ['reason'],
-          properties: {
-            reason: {
-              type: 'string',
-              minLength: 1,
-              maxLength: 2000,
-              description: 'Shown to both parties in the cancellation notification.',
-            },
-          },
-        },
-        CancelCommissionResponse: {
           type: 'object',
           properties: {
             success: { type: 'boolean', enum: [true] },
@@ -900,6 +887,30 @@ export const openApiSpec = swaggerJsdoc({
                   properties: {
                     stroops: { type: 'string', example: '100' },
                     xlm: { type: 'string', example: '0.0000100' },
+                  },
+                },
+              },
+            },
+          },
+        },
+        CancelCommissionRequest: {
+          type: 'object',
+          required: ['reason'],
+          properties: {
+            reason: {
+              type: 'string',
+              minLength: 1,
+              maxLength: 2000,
+              description: 'Shown to both parties in the cancellation notification.',
+            },
+          },
+        },
+        CancelCommissionResponse: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', enum: [true] },
+            data: {
+              type: 'object',
               properties: {
                 commission: { $ref: '#/components/schemas/Commission' },
                 refund: {
