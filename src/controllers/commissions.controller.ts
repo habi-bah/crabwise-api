@@ -88,6 +88,10 @@ export const postCommissionCancellation = catchAsync(
       unknown
     >(req);
     const result = await cancelCommission(params.id, sub, body);
+    res.status(200).json({ success: true, data: result });
+  },
+);
+
 /** POST /api/v1/commissions/:id/deliverables — the artist submits work (#784). */
 export const postCommissionDeliverable = catchAsync(
   async (req, res: Response<ApiResponse<SubmitDeliverableResult>>) => {
