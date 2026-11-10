@@ -11,6 +11,9 @@ const { prismaMock, sdkMock } = vi.hoisted(() => {
         findUnique: vi.fn(),
         updateMany: vi.fn(),
       },
+      wallet: { findUnique: vi.fn(), create: vi.fn(), upsert: vi.fn() },
+      user: { findUnique: vi.fn(), create: vi.fn() },
+      $transaction: vi.fn(),
     },
     sdkMock: {
       verify,
@@ -20,13 +23,21 @@ const { prismaMock, sdkMock } = vi.hoisted(() => {
   };
 });
 
+const { tokenMock } = vi.hoisted(() => ({ tokenMock: { issueTokenPair: vi.fn() } }));
+
 vi.mock('@/services', () => ({ prisma: prismaMock }));
 vi.mock('@stellar/stellar-sdk', () => ({
   Keypair: { fromPublicKey: sdkMock.fromPublicKey },
   StrKey: { isValidEd25519PublicKey: sdkMock.isValidEd25519PublicKey },
 }));
+vi.mock('./token.service', () => tokenMock);
 
-import { generateNonce, NONCE_TTL_MS, verifySignature } from './stellar-auth.service';
+import {
+  findOrCreateUserByWalletPublicKey,
+  generateNonce,
+  NONCE_TTL_MS,
+  verifySignature,
+} from './stellar-auth.service';
 
 const PUBLIC_KEY = 'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H';
 const OTHER_KEY = 'GCEZWKCA5VLDNRLN3RPRJMRZOX3Z6G5CHCGSNFHEYVXM3XOJMDS674JZ';
@@ -52,6 +63,8 @@ beforeEach(() => {
   prismaMock.stellarNonce.create.mockResolvedValue({});
   prismaMock.stellarNonce.findUnique.mockResolvedValue(nonceRecord());
   prismaMock.stellarNonce.updateMany.mockResolvedValue({ count: 1 });
+  prismaMock.$transaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(prismaMock));
+  tokenMock.issueTokenPair.mockResolvedValue({ accessToken: 'access', refreshToken: 'refresh' });
 });
 
 afterEach(() => {
@@ -157,5 +170,76 @@ describe('verifySignature', () => {
     await expect(verifySignature('bad', NONCE, SIGNATURE)).rejects.toThrow(
       'Invalid Stellar public key',
     );
+  });
+});
+describe('findOrCreateUserByWalletPublicKey', () => {
+  const tokens = { accessToken: 'access', refreshToken: 'refresh' };
+  const walletUser = {
+    id: 'user-1',
+    email: 'wallet_user@stellar.local',
+    passwordHash: '$2b$04$hash',
+    name: 'Wallet User',
+    username: 'wallet_user',
+    role: 'USER' as const,
+    emailVerified: true,
+    bio: null,
+    location: null,
+    website: null,
+    socialLinks: null,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+  };
+
+  it('loads the wallet owner by userId, since Wallet has no User relation', async () => {
+    prismaMock.wallet.findUnique.mockResolvedValue({
+      id: 'wallet-1',
+      userId: walletUser.id,
+      publicKey: PUBLIC_KEY,
+    });
+    prismaMock.user.findUnique.mockResolvedValue(walletUser);
+
+    const result = await findOrCreateUserByWalletPublicKey(PUBLIC_KEY);
+
+    expect(prismaMock.wallet.findUnique).toHaveBeenCalledWith({
+      where: { publicKey: PUBLIC_KEY },
+    });
+    expect(prismaMock.user.findUnique).toHaveBeenCalledWith({ where: { id: walletUser.id } });
+    expect(result.user.id).toBe(walletUser.id);
+    expect(result.tokens).toEqual(tokens);
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('creates the user and wallet on first login', async () => {
+    prismaMock.wallet.findUnique.mockResolvedValue(null);
+    prismaMock.user.findUnique.mockResolvedValue(null);
+    prismaMock.user.create.mockResolvedValue({ ...walletUser, id: 'user-2' });
+    prismaMock.wallet.create.mockResolvedValue({});
+
+    const result = await findOrCreateUserByWalletPublicKey(PUBLIC_KEY);
+
+    expect(prismaMock.user.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        username: expect.stringMatching(/^wallet_brpyhil2_[0-9a-f]{8}$/),
+        role: 'USER',
+      }),
+    });
+    expect(prismaMock.wallet.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ userId: 'user-2', publicKey: PUBLIC_KEY, verified: true }),
+    });
+    expect(result.user.id).toBe('user-2');
+  });
+
+  it('rejects a wallet row whose user no longer exists', async () => {
+    prismaMock.wallet.findUnique.mockResolvedValue({
+      id: 'wallet-1',
+      userId: 'deleted-user',
+      publicKey: PUBLIC_KEY,
+    });
+    prismaMock.user.findUnique.mockResolvedValue(null);
+
+    await expect(findOrCreateUserByWalletPublicKey(PUBLIC_KEY)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 });
