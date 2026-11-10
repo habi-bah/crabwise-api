@@ -14,7 +14,9 @@ const { prismaMock, redisMock, envMock, enqueueEmailMock } = vi.hoisted(() => {
   return {
     prismaMock: { notification, user },
     redisMock: { get: vi.fn(), set: vi.fn(), del: vi.fn() },
-    envMock: { smtp: undefined as { host: string; port: number; user?: string; pass?: string } | undefined },
+    envMock: {
+      smtp: undefined as { host: string; port: number; user?: string; pass?: string } | undefined,
+    },
     enqueueEmailMock: vi.fn(),
   };
 });
@@ -74,7 +76,11 @@ describe('createNotification (#841)', () => {
 
   it('enqueues an email when SMTP is configured', async () => {
     envMock.smtp = { host: 'smtp.test', port: 587 };
-    prismaMock.notification.create.mockResolvedValue(makeNotification());
+    // Echo the input, as the real row would.
+    prismaMock.notification.create.mockImplementation(({ data }: { data: object }) => ({
+      ...makeNotification(),
+      ...data,
+    }));
     prismaMock.user.findUnique.mockResolvedValue({ email: 'a@b.co' });
 
     await createNotification({ userId: USER_ID, type: 'SYSTEM', data: { message: 'hi' } });
@@ -92,9 +98,9 @@ describe('createNotification (#841)', () => {
     prismaMock.notification.create.mockResolvedValue(makeNotification());
     prismaMock.user.findUnique.mockRejectedValue(new Error('db down'));
 
-    await expect(
-      createNotification({ userId: USER_ID, type: 'SYSTEM' }),
-    ).resolves.toMatchObject({ id: 'notif-1' });
+    await expect(createNotification({ userId: USER_ID, type: 'SYSTEM' })).resolves.toMatchObject({
+      id: 'notif-1',
+    });
     expect(enqueueEmailMock).not.toHaveBeenCalled();
   });
 });
@@ -103,7 +109,9 @@ describe('createNotifications batch (#841)', () => {
   it('creates one row per recipient in a single round-trip', async () => {
     prismaMock.notification.createMany.mockResolvedValue({ count: 2 });
 
-    const count = await createNotifications(['u1', 'u2'], 'COMMISSION_UPDATE', { commissionId: 'c1' });
+    const count = await createNotifications(['u1', 'u2'], 'COMMISSION_UPDATE', {
+      commissionId: 'c1',
+    });
 
     expect(count).toBe(2);
     expect(prismaMock.notification.createMany).toHaveBeenCalledWith({
@@ -217,11 +225,6 @@ describe('getUnreadCount (#842)', () => {
     prismaMock.notification.count.mockResolvedValue(9);
 
     await expect(getUnreadCount(USER_ID)).resolves.toBe(9);
-    expect(redisMock.set).toHaveBeenCalledWith(
-      `notifications:unread:${USER_ID}`,
-      '9',
-      'EX',
-      60,
-    );
+    expect(redisMock.set).toHaveBeenCalledWith(`notifications:unread:${USER_ID}`, '9', 'EX', 60);
   });
 });
