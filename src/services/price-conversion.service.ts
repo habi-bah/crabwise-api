@@ -164,7 +164,7 @@ async function fetchOrderBookMidPrice(
   if (bestBid !== undefined && bestAsk !== undefined) {
     return (bestBid + bestAsk) / 2;
   }
-  return bestBid ?? bestAsk;
+  return bestBid ?? bestAsk ?? null;
 }
 
 function cacheKey(base: PriceAsset, counter: PriceAsset): string {
