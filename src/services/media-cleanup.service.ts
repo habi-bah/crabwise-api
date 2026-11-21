@@ -15,6 +15,48 @@ import { prisma } from '@/services';
 import { deleteObject } from './s3.service';
 
 const GRACE_PERIOD_MS = 24 * 60 * 60 * 1000;
+const MISSING_OBJECT_ERROR_NAMES = new Set(['NoSuchKey', 'NotFound']);
+
+function isMissingObjectError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+
+  const candidate = error as {
+    name?: unknown;
+    Code?: unknown;
+    code?: unknown;
+    message?: unknown;
+    $metadata?: { httpStatusCode?: unknown };
+  };
+
+  if (
+    [candidate.name, candidate.Code, candidate.code].some(
+      (value) => typeof value === 'string' && MISSING_OBJECT_ERROR_NAMES.has(value),
+    )
+  ) {
+    return true;
+  }
+
+  if (candidate.$metadata?.httpStatusCode === 404) {
+    return true;
+  }
+
+  return (
+    typeof candidate.message === 'string' &&
+    /no such key|specified key does not exist|does not exist|not found/i.test(candidate.message)
+  );
+}
+
+async function deleteObjectIfPresent(bucket: string, key: string): Promise<void> {
+  try {
+    await deleteObject(bucket, key);
+  } catch (error) {
+    if (!isMissingObjectError(error)) {
+      throw error;
+    }
+  }
+}
 
 export interface MediaCleanupStats {
   readonly scanned: number;
@@ -40,7 +82,7 @@ export async function cleanupOrphanedMedia(): Promise<MediaCleanupStats> {
 
   for (const media of orphaned) {
     try {
-      await deleteObject(media.bucket, media.key);
+      await deleteObjectIfPresent(media.bucket, media.key);
       await prisma.media.delete({ where: { id: media.id } });
       deleted += 1;
     } catch (error) {

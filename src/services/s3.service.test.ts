@@ -33,6 +33,13 @@ describe('media cleanup storage failures', () => {
   const first = { id: 'media-1', bucket: 'test-bucket', key: 'images/first.png' };
   const second = { id: 'media-2', bucket: 'test-bucket', key: 'images/second.png' };
 
+  function missingObjectError(): Error {
+    return Object.assign(new Error('The specified key does not exist.'), {
+      name: 'NoSuchKey',
+      $metadata: { httpStatusCode: 404 },
+    });
+  }
+
   beforeEach(() => {
     vi.resetAllMocks();
     prismaMock.media.findMany.mockResolvedValue([first, second]);
@@ -59,6 +66,77 @@ describe('media cleanup storage failures', () => {
       [{ where: { id: first.id } }],
       [{ where: { id: second.id } }],
     ]);
+  });
+
+  it('tolerates an already-removed object and still deletes its row', async () => {
+    vi.mocked(s3Client.send).mockRejectedValueOnce(missingObjectError());
+
+    await expect(cleanupOrphanedMedia()).resolves.toEqual({ scanned: 2, deleted: 2, failed: 0 });
+
+    expect(prismaMock.media.delete.mock.calls).toEqual([
+      [{ where: { id: first.id } }],
+      [{ where: { id: second.id } }],
+    ]);
+    expect(loggerMock.error).not.toHaveBeenCalled();
+    expect(loggerMock.info).toHaveBeenCalledWith('media-cleanup: run complete', {
+      scanned: 2,
+      deleted: 2,
+      failed: 0,
+    });
+  });
+
+  it.each([
+    ['a 404 status', Object.assign(new Error('gone'), { $metadata: { httpStatusCode: 404 } })],
+    ['a NoSuchKey name', Object.assign(new Error('gone'), { name: 'NoSuchKey' })],
+    ['a missing-key message', new Error('The specified key does not exist.')],
+  ])('recognises a missing object from %s', async (_label, error) => {
+    vi.mocked(s3Client.send).mockRejectedValueOnce(error);
+
+    await expect(cleanupOrphanedMedia()).resolves.toEqual({ scanned: 2, deleted: 2, failed: 0 });
+    expect(loggerMock.error).not.toHaveBeenCalled();
+  });
+
+  it('does not hide other storage errors alongside a missing object', async () => {
+    const failure = Object.assign(new Error('Access denied'), {
+      $metadata: { httpStatusCode: 403 },
+    });
+    vi.mocked(s3Client.send)
+      .mockRejectedValueOnce(missingObjectError())
+      .mockRejectedValueOnce(failure);
+
+    await expect(cleanupOrphanedMedia()).rejects.toMatchObject({
+      name: 'AggregateError',
+      errors: [failure],
+    });
+
+    expect(prismaMock.media.delete).toHaveBeenCalledExactlyOnceWith({ where: { id: first.id } });
+    expect(loggerMock.error).toHaveBeenCalledExactlyOnceWith(
+      'media-cleanup: failed to delete orphaned media',
+      { mediaId: second.id, message: failure.message },
+    );
+    expect(loggerMock.info).toHaveBeenCalledWith('media-cleanup: run complete', {
+      scanned: 2,
+      deleted: 1,
+      failed: 1,
+    });
+  });
+
+  it('still reports a database failure after tolerating a missing object', async () => {
+    const failure = new Error('Database unavailable');
+    vi.mocked(s3Client.send).mockRejectedValueOnce(missingObjectError());
+    prismaMock.media.delete.mockRejectedValueOnce(failure);
+
+    await expect(cleanupOrphanedMedia()).rejects.toMatchObject({
+      name: 'AggregateError',
+      errors: [failure],
+    });
+    expect(loggerMock.error).toHaveBeenCalledWith(
+      'media-cleanup: failed to delete orphaned media',
+      {
+        mediaId: first.id,
+        message: failure.message,
+      },
+    );
   });
 
   it('rejects after a partial S3 failure, retains its row and continues the batch', async () => {
