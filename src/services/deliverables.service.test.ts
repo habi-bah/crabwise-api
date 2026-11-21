@@ -642,6 +642,50 @@ describe('reviewDeliverable (#823)', () => {
     ).rejects.toMatchObject({ code: 'CONFLICT' });
   });
 
+  it.each(['PENDING', 'ACCEPTED', 'COMPLETED', 'CANCELLED', 'DISPUTED'] as const)(
+    'refuses to edit a deliverable while the commission is %s',
+    async (status) => {
+      txMock.commission.findUnique.mockResolvedValue(makeCommission(status));
+
+      await expect(
+        reviewDeliverable(COMMISSION_ID, DELIVERABLE_ID, CLIENT_ID, {
+          decision: 'REQUEST_CHANGES',
+          note: 'Please revise',
+        }),
+      ).rejects.toMatchObject({ code: 'CONFLICT' });
+      await expect(
+        reviewDeliverable(COMMISSION_ID, DELIVERABLE_ID, CLIENT_ID, { decision: 'ACCEPT' }),
+      ).rejects.toMatchObject({ code: 'CONFLICT' });
+
+      expect(txMock.deliverable.update).not.toHaveBeenCalled();
+      expect(txMock.commission.update).not.toHaveBeenCalled();
+      expect(txMock.commissionEvent.create).not.toHaveBeenCalled();
+      expect(txMock.notification.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it('allows changes to be requested on a WIP while the work is in progress', async () => {
+    txMock.commission.findUnique.mockResolvedValue(makeCommission('IN_PROGRESS'));
+    txMock.deliverable.findUnique.mockResolvedValue(makeDeliverable('SUBMITTED', 'WIP'));
+
+    const result = await reviewDeliverable(COMMISSION_ID, DELIVERABLE_ID, CLIENT_ID, {
+      decision: 'REQUEST_CHANGES',
+      note: 'Try another palette',
+    });
+
+    expect(result).toMatchObject({
+      commissionStatus: 'IN_PROGRESS',
+      escrowReleased: false,
+      revisionCount: 1,
+    });
+    expect(txMock.deliverable.update).toHaveBeenCalledWith({
+      where: { id: DELIVERABLE_ID },
+      data: { status: 'REJECTED' },
+    });
+    expect(txMock.commission.update).not.toHaveBeenCalled();
+    expect(txMock.notification.create).toHaveBeenCalled();
+  });
+
   it('requesting changes records a revision, reopens the work and notes the feedback', async () => {
     const result = await reviewDeliverable(COMMISSION_ID, DELIVERABLE_ID, CLIENT_ID, {
       decision: 'REQUEST_CHANGES',

@@ -85,6 +85,15 @@ export interface ReviewDeliverableResult {
 const REVISION_STATUS: DeliverableStatus = 'REJECTED';
 
 /**
+ * States in which the client may still decide on a submitted deliverable.
+ * `IN_PROGRESS` is when a WIP draft awaits feedback; `DELIVERED` is when the
+ * final version awaits sign-off. Every other state has either not reached
+ * delivery (PENDING/ACCEPTED), finished it (COMPLETED), or taken it out of the
+ * review flow (CANCELLED/DISPUTED), so no deliverable may be edited there.
+ */
+const REVIEWABLE_COMMISSION_STATUSES: readonly CommissionStatus[] = ['IN_PROGRESS', 'DELIVERED'];
+
+/**
  * Dispute states that hold escrow. Mirrors `OPEN_DISPUTE_STATUSES` in
  * `commissions.service`, which owns the dispute rules; duplicated rather than
  * imported to keep the two services independent.
@@ -320,9 +329,11 @@ export async function submitDeliverable(
  * `IN_PROGRESS` for the artist, and is refused once the configured revision
  * limit is reached. The artist is notified of either decision.
  *
- * While a dispute is open, escrow is held and neither decision is allowed:
- * only an admin resolution can move the commission (the same rule the status
- * endpoint and dispute resolution already enforce).
+ * A submission can only be decided while the commission is `IN_PROGRESS` or
+ * `DELIVERED`; accepting additionally requires `DELIVERED`. While a dispute is
+ * open, escrow is held and neither decision is allowed: only an admin
+ * resolution can move the commission (the same rule the status endpoint and
+ * dispute resolution already enforce).
  */
 export async function reviewDeliverable(
   commissionId: string,
@@ -361,6 +372,12 @@ export async function reviewDeliverable(
       throw new AppError(
         'CONFLICT',
         `This deliverable has already been ${deliverable.status.toLowerCase()}`,
+      );
+    }
+    if (!REVIEWABLE_COMMISSION_STATUSES.includes(commission.status)) {
+      throw new AppError(
+        'CONFLICT',
+        `Cannot review a deliverable while the commission is ${commission.status}`,
       );
     }
 
